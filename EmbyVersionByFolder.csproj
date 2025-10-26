@@ -11,10 +11,16 @@
 
   <ItemGroup>
     <PackageReference Include="MediaBrowser.Server.Core" Version="4.9.1.80" />
-    <PackageReference Include="Lib.Harmony" Version="2.3.3">
-      <PrivateAssets>none</PrivateAssets>
-    </PackageReference>
+    <PackageReference Include="Lib.Harmony" Version="2.3.3" />
   </ItemGroup>
+  
+  <!-- 确保 Harmony DLL 被复制到输出目录 -->
+  <Target Name="CopyHarmonyDll" AfterTargets="Build">
+    <ItemGroup>
+      <HarmonyDll Include="$(NuGetPackageRoot)lib.harmony\2.3.3\lib\net8.0\0Harmony.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(HarmonyDll)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+  </Target>
 
   <ItemGroup>
     <Compile Remove="Emby.SDK-4.9.1.80\**" />

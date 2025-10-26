@@ -25,6 +25,11 @@ jobs:
     - name: Build
       run: dotnet build -c Release --no-restore
       
+    - name: List output files (debug)
+      run: |
+        echo "Listing output directory:"
+        ls -la bin/Release/net8.0/
+      
     - name: Get version from tag
       id: get_version
       run: |
@@ -40,7 +45,18 @@ jobs:
       run: |
         mkdir -p release
         cp bin/Release/net8.0/EmbyVersionByFolder.dll release/
-        cp bin/Release/net8.0/0Harmony.dll release/
+        
+        # 复制 Harmony DLL，如果不存在则从 NuGet 缓存复制
+        if [ -f "bin/Release/net8.0/0Harmony.dll" ]; then
+          cp bin/Release/net8.0/0Harmony.dll release/
+        else
+          echo "0Harmony.dll not found in output, searching in NuGet cache..."
+          find ~/.nuget/packages/lib.harmony -name "0Harmony.dll" -type f | head -1 | xargs -I {} cp {} release/
+        fi
+        
+        # 验证文件存在
+        ls -la release/
+        
         cd release
         zip -r ../EmbyVersionByFolder-${{ steps.get_version.outputs.VERSION }}.zip .
         
