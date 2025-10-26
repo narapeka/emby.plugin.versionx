@@ -1,0 +1,102 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送 v* 标签时触发（如 v1.0.0）
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build
+      run: dotnet build -c Release --no-restore
+      
+    - name: Get version from tag
+      id: get_version
+      run: |
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+        else
+          VERSION="dev-$(date +%Y%m%d-%H%M%S)"
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Building version: $VERSION"
+        
+    - name: Create release package
+      run: |
+        mkdir -p release
+        cp bin/Release/net8.0/EmbyVersionByFolder.dll release/
+        cp bin/Release/net8.0/0Harmony.dll release/
+        cd release
+        zip -r ../EmbyVersionByFolder-${{ steps.get_version.outputs.VERSION }}.zip .
+        
+    - name: Generate checksums
+      run: |
+        cd release
+        sha256sum EmbyVersionByFolder.dll > ../checksums.txt
+        sha256sum 0Harmony.dll >> ../checksums.txt
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          EmbyVersionByFolder-${{ steps.get_version.outputs.VERSION }}.zip
+          checksums.txt
+        body: |
+          ## Emby Version By Folder - v${{ steps.get_version.outputs.VERSION }}
+          
+          ### 安装方法
+          
+          1. 下载 `EmbyVersionByFolder-${{ steps.get_version.outputs.VERSION }}.zip`
+          2. 解压缩得到 `EmbyVersionByFolder.dll` 和 `0Harmony.dll`
+          3. 将两个文件复制到 Emby 插件目录：
+             - Linux: `/config/plugins/`
+             - Windows: `C:\ProgramData\Emby-Server\plugins\`
+          4. 重启 Emby Server
+          5. 在 Emby 控制台 → 插件 → 文件夹版本命名 中启用插件
+          
+          ### 功能特性
+          
+          - 🎯 自动识别多版本媒体（相同 TMDB ID）
+          - 📁 基于文件夹路径差异设置版本名称
+          - 🎬 支持电影和剧集
+          - ⚡ 实时生效，无需重新扫描
+          
+          ### 文件校验
+          
+          请查看 `checksums.txt` 验证文件完整性。
+          
+          ### 系统要求
+          
+          - Emby Server 4.8+
+          - .NET 8.0 Runtime
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Upload artifact (for manual runs)
+      if: "!startsWith(github.ref, 'refs/tags/')"
+      uses: actions/upload-artifact@v4
+      with:
+        name: EmbyVersionByFolder-${{ steps.get_version.outputs.VERSION }}
+        path: |
+          EmbyVersionByFolder-${{ steps.get_version.outputs.VERSION }}.zip
+          checksums.txt
+        retention-days: 30
+
